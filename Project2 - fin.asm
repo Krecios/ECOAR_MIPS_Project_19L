@@ -63,7 +63,7 @@ main:
   #sb $zero, 62($a1)
   
   la $a0, imgInfo
-  li $a1, 2	# x coordinate
+  li $a1, 3	# x coordinate
   li $a2, 20	# y coordinate
   lw $t0, iheight($a0)
   sub $a2, $t0, $a2
@@ -276,18 +276,15 @@ even_row:
 	sllv $t1, $t1, $t3
 	move $t4, $t1
 dots_even:
-	beq $t3, 0, chroma_even
-	beq $t3, 1, chroma_even
-	beqz $t6, count_space
+	beq $t3, 0, chroma_even			#always ends with 1
+	beq $t3, 1, chroma_even			#always ends with 0
+	beqz $t6, chroma_even
 	srl $t4, $t4, 2
 	or $t1, $t1, $t4
 	subiu $t3, $t3, 2
 	subiu $t6, $t6, 1	
-	beqz $t6, count_space
+	#beqz $t6, chroma_even
 	j dots_even
-fill:
-	srl $t4, $t4, 2
-	or $t1, $t1, $t4
 chroma_even:
 	move $t8, $t1
 	sll $t8, $t8, 30
@@ -299,7 +296,6 @@ chroma_even:
 	not $t1, $t1
 	sb $t1, ($t0)
 	bnez $t6, prep_dots_even
-	bgtu $t7, 8, line_fill
 	j end_line
 prep_dots_even:
 	addiu $t9, $t9, 1
@@ -309,71 +305,6 @@ prep_dots_even:
 	move $t4, $t1
 	subiu $t6, $t6, 1
 	j dots_even
-count_space:
-	beq $t1, 0x80, case_t3_1
-	beq $t1, 0xa0, case_t3_2
-	beq $t1, 0xa8, case_t3_3
-	beq $t1, 0xaa, case_t3_4
-	j line_begin
-case_t3_1:
-	li $t3, 7
-	j line_begin
-case_t3_2:
-	li $t3, 5
-	j line_begin
-case_t3_3:
-	li $t3, 3
-	j line_begin
-case_t3_4:
-	li $t3, 1
-line_begin:
-	bltu $t3, 3, chroma_even
-	li $t4, 0x01
-	subiu $t3, $t3, 3
-	sllv $t4, $t4, $t3
-	j line_begin_loop
-line_begin_loop:
-	or $t1, $t1, $t4
-	subiu $t7, $t7, 1
-	beqz $t3, chroma_even
-	beqz $t7, chroma_even	
-	subiu $t3, $t3, 1
-	srl $t4, $t4, 1
-	j line_begin_loop
-special_line_begin:
-	addiu $t0, $t0, 1
-	addiu $t9, $t9, 1
-	beq $t8, 0x80, special_alt
-	beqz $t8, special_alt_2
-	li $t1, 0x20
-	li $t3, 7
-	move $t4, $t1
-	j special_loop
-special_alt:
-	li $t1, 0x40
-	li $t3, 6
-	move $t4, $t1
-	j special_loop
-special_alt_2:
-	li $t1, 0x80
-	li $t3, 8
-	move $t4, $t1
-	j special_loop
-special_loop:
-	or $t1, $t1, $t4
-	subiu $t7, $t7, 1
-	beqz $t3, chroma_even
-	beqz $t7, chroma_even
-	subiu $t3, $t3, 1
-	srl $t4, $t4, 1
-	j special_loop
-line_fill:
-	beq $t7, $s5, special_line_begin
-	addiu $t0, $t0, 1
-	addiu $t9, $t9, 1
-	li $t1, 0xff
-	subiu $t7, $t7, 8
-	j chroma_even
 #########################################################
 middle_line:
 	li $s3, 1
