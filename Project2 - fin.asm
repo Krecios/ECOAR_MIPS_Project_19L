@@ -1,4 +1,4 @@
-	  .data
+  .data
 fname: 	.asciiz "checkboard.bmp"
 oname:	.asciiz "output.bmp"
 
@@ -63,7 +63,7 @@ main:
   #sb $zero, 62($a1)
   
   la $a0, imgInfo
-  li $a1, 3	# x coordinate
+  li $a1, 6	# x coordinate
   li $a2, 20	# y coordinate
   lw $t0, iheight($a0)
   sub $a2, $t0, $a2
@@ -284,6 +284,8 @@ chroma_even:
 	not $t1, $t1
 	sb $t1, ($t0)
 	bnez $t6, prep_dots_even
+	bnez $t2, end_line
+	addiu $t3, $t3, 1
 	j end_line
 prep_dots_even:
 	addiu $t9, $t9, 1
@@ -292,6 +294,9 @@ prep_dots_even:
 	move $t1, $t8
 	move $t4, $t1
 	subiu $t6, $t6, 1
+	rem $t2, $a1, 2
+	bnez $t2, dots_even
+	addiu $t3, $t3, 1
 	j dots_even
 #########################################################
 middle_line:
