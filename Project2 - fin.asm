@@ -1,4 +1,4 @@
-  .data
+	  .data
 fname: 	.asciiz "checkboard.bmp"
 oname:	.asciiz "output.bmp"
 
@@ -205,55 +205,43 @@ odd_row:
 	move $t6, $s4
 	
 	li $t1, 0x01
-	move $t2, $s1
 	li $t3, 8
 	div $t3, $a1, $t3
 	addiu $t3, $t3, 1
 	mul $t3, $t3, 8
 	sub $t3, $t3, $a1
-	sub $t2, $t2, $t3
 	subiu $t3, $t3, 1
 	sllv $t1, $t1, $t3
-	j chroma
-dots:
-	beqz $t6, chroma
 	move $t4, $t1
+dots_odd:
+	beq $t3, 0, chroma_odd			#always ends with 1
+	beq $t3, 1, chroma_odd			#always ends with 0
+	beqz $t6, chroma_odd
 	srl $t4, $t4, 2
 	or $t1, $t1, $t4
-	subiu $t6, $t6, 1
-	bnez $t6, dots
-chroma:	
-	not $t1, $t1
-	lb $t4, ($t0)
-	xor $t1, $t1, $t4		#changing a color depending on the background
-	not $t1, $t1
-	sb $t1, ($t0) 
-copy_odd:					#middle couple of bits in one of the middle lines
-	li $t3, 8
-	div $t3, $t2, $t3
-	beqz $t3, end_odd
-	bge $t3, 2, more_than_one_odd
-	mulu $t3, $t3, 8
-	sub $t3, $t3, $t2
-	beqz $t3, end_odd
-more_than_one_odd:			#sanity checks for the remaining bits
-	addiu $t0, $t0, 1
-	addiu $t9, $t9, 1
-	subiu $t2, $t2, 8
-	j copy_odd
-end_odd:
-	addiu $t0, $t0, 1
-	addiu $t9, $t9, 1
-	li $t1, 0x01
-	li $t3, 8
-	sub $t3, $t3, $t2
-	sllv $t1, $t1, $t3
+	subiu $t3, $t3, 2
+	subiu $t6, $t6, 1	
+	j dots_even
+chroma_odd:
+	move $t8, $t1
+	sll $t8, $t8, 30
+	srl $t8, $t8, 24
+					
 	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
+	bnez $t6, prep_dots_odd
 	j end_line
+prep_dots_odd:
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	li $t3, 6
+	move $t1, $t8
+	move $t4, $t1
+	subiu $t6, $t6, 1
+	j dots_odd
 #########################################################
 even_row:
 	move $s4, $t5
@@ -351,7 +339,3 @@ last_bit_m:				#last couple of bits in one of the middle lines
 #########################################################
 fin:
 	jr $ra
-	
-	
-	
-	
