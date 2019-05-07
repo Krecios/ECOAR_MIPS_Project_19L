@@ -271,7 +271,6 @@ dots_even:
 	or $t1, $t1, $t4
 	subiu $t3, $t3, 2
 	subiu $t6, $t6, 1	
-	#beqz $t6, chroma_even
 	j dots_even
 chroma_even:
 	move $t8, $t1
@@ -284,6 +283,9 @@ chroma_even:
 	not $t1, $t1
 	sb $t1, ($t0)
 	bnez $t6, prep_dots_even
+	rem $t2, $a1, 2
+	bnez $t2, end_line
+	rem $t2, $t3, 2
 	bnez $t2, end_line
 	addiu $t3, $t3, 1
 	j end_line
