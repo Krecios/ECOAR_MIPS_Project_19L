@@ -63,11 +63,11 @@ main:
   #sb $zero, 62($a1)
   
   la $a0, imgInfo
-  li $a1, 7	# x coordinate
-  li $a2, 20	# y coordinate
+  li $a1, 15	# x coordinate
+  li $a2, 23	# y coordinate
   lw $t0, iheight($a0)
   sub $a2, $t0, $a2
-  li $s0, 45	#size of the pattern
+  li $s0, 156		#$s0 = size of the pattern
   move $s1, $s0
   sll $s1, $s1, 1
   subiu $s1, $s1, 1	#$s1 = the length of the pattern
@@ -203,66 +203,140 @@ odd_row:
 	move $s4, $t5
 	div $s4, $s4, 2			#s4 - number of dost per side
 	move $t6, $s4
-	
+	move $s5, $s1
+	move $t3, $t5
+	mul $t3, $t3, 2
+	sub $s5, $s5, $t3		#s5 - length of the gap
+	move $t7, $s5
+
+odd_init:
+	move $s6, $s5
+	div $s6, $s6, 2
+	addiu $s6, $s6, 1
+	move $s7, $zero
+		
 	li $t1, 0x01
-	move $t2, $s1
 	li $t3, 8
 	div $t3, $a1, $t3
 	addiu $t3, $t3, 1
 	mul $t3, $t3, 8
 	sub $t3, $t3, $a1
-	sub $t2, $t2, $t3
 	subiu $t3, $t3, 1
 	sllv $t1, $t1, $t3
-	j chroma
-dots:
-	beqz $t6, chroma
 	move $t4, $t1
+dots_odd:
+	beq $t3, 0, chroma_odd			#always ends with 1
+	beq $t3, 1, chroma_odd			#always ends with 0
+	beqz $t6, gap_start	
 	srl $t4, $t4, 2
 	or $t1, $t1, $t4
-	subiu $t6, $t6, 1
-	bnez $t6, dots
-chroma:	
-	not $t1, $t1
-	lb $t4, ($t0)
-	xor $t1, $t1, $t4		#changing a color depending on the background
-	not $t1, $t1
-	sb $t1, ($t0) 
-copy_odd:					#middle couple of bits in one of the middle lines
-	li $t3, 8
-	div $t3, $t2, $t3
-	beqz $t3, end_odd
-	bge $t3, 2, more_than_one_odd
-	mulu $t3, $t3, 8
-	sub $t3, $t3, $t2
-	beqz $t3, end_odd
-more_than_one_odd:			#sanity checks for the remaining bits
-	addiu $t0, $t0, 1
-	addiu $t9, $t9, 1
-	subiu $t2, $t2, 8
-	j copy_odd
-end_odd:
-	addiu $t0, $t0, 1
-	addiu $t9, $t9, 1
-	li $t1, 0x01
-	li $t3, 8
-	sub $t3, $t3, $t2
-	sllv $t1, $t1, $t3
+	subiu $t3, $t3, 2
+	subiu $t6, $t6, 1	
+	j dots_odd
+chroma_odd:
+	move $t8, $t1
+	sll $t8, $t8, 30
+	srl $t8, $t8, 24
+					
 	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
+	bnez $t6, prep_dots_odd
+	bgeu $t7, 8, gap_fill
+	bnez $t7, gap_end
 	j end_line
+prep_dots_odd:
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	addiu $t3, $t3, 6
+	move $t1, $t8
+	move $t4, $t1
+	subiu $t6, $t6, 1
+	j dots_odd
+dots_start_odd:
+	not $t1, $t1			# emergency chroma
+	lb $t4, ($t0)
+	xor $t1, $t1, $t4		#changing a color depending on the background
+	not $t1, $t1
+	sb $t1, ($t0)
+	
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	li $t1, 0x80
+	move $t4, $t1
+	move $t6, $s4
+	li $t3, 7
+	j dots_odd
+gap_start:
+	beqz $t7, chroma_odd
+	bgtu $t3, $t7, no_gap
+	sub $t7, $t7, $t3
+	move $t3, $zero
+	bgtu $s6, $t7, middle_dot 
+	beqz $t7, dots_start_odd
+	j chroma_odd
+gap_fill:
+	sub $t7, $t7, $t3
+	move $t3, $zero
+	li $t1, 0x00
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1	
+	subiu $t7, $t7, 8
+	bgtu $s6, $t7, middle_dot 	
+	beqz $t7, dots_start_odd
+	j chroma_odd
+middle_dot:
+	sub $t3, $s6, $t7
+	subiu $t3, $t3, 1
+	li $t4, 0x01
+	sllv $t4, $t4, $t3
+	or $t1, $t1, $t4
+	move $s6, $zero
+	move $t3, $zero
+	beqz $t7, dots_start_odd
+	j chroma_odd
+gap_end:
+	sub $t7, $t7, $t3
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	li $t1, 0x80
+	srlv $t1, $t1, $t7
+	move $t4, $t1	
+	li $t3, 7
+	sub $t3, $t3, $t7
+	move $t7, $zero
+	move $t6, $s4
+	bnez $s6, middle_dot_at_the_end
+	j dots_odd
+middle_dot_at_the_end:
+	sllv $t4, $t4, $s6
+	or $t1, $t1, $t4
+	srlv $t4, $t4, $s6
+	move $s6, $zero
+	j dots_odd
+no_gap:
+	addiu $t7, $t7, 1
+	sub $t3, $t3, $t7
+	srlv $t4, $t4, $t7
+	move $t7, $zero
+	or $t1, $t1, $t4
+	move $t6, $s4
+	bnez $s6, middle_dot_at_the_end
+	j dots_odd 
 #########################################################
 even_row:
+	subiu $t3, $s0, 2
+	beq $t3, $t5, even_is_odd
 	move $s4, $t5
 	subiu $s4, $s4, 2
 	div $s4, $s4, 2			#s4 - number of dost per side
 	move $s5, $s1
 	move $t3, $t5
 	mul $t3, $t3, 2
-	sub $s5, $s5, $t3		#s5 - length of the solid line
+	sub $s5, $s5, $t3		
+	sub $s5, $s5, 2			#s5 - length of the solid line
 	move $t6, $s4
 	move $t7, $s5
 	
@@ -278,12 +352,11 @@ even_row:
 dots_even:
 	beq $t3, 0, chroma_even			#always ends with 1
 	beq $t3, 1, chroma_even			#always ends with 0
-	beqz $t6, line_begin
+	beqz $t6, line_start
 	srl $t4, $t4, 2
 	or $t1, $t1, $t4
 	subiu $t3, $t3, 2
 	subiu $t6, $t6, 1	
-	#beqz $t6, chroma_even
 	j dots_even
 chroma_even:
 	move $t8, $t1
@@ -296,6 +369,8 @@ chroma_even:
 	not $t1, $t1
 	sb $t1, ($t0)
 	bnez $t6, prep_dots_even
+	bgtu $t7, 8, line_fill
+	bnez $t7, line_end
 	j end_line
 prep_dots_even:
 	addiu $t9, $t9, 1
@@ -305,17 +380,167 @@ prep_dots_even:
 	move $t4, $t1
 	subiu $t6, $t6, 1
 	j dots_even
-line_begin:
+line_start:
+	sub $t2, $t3, 2
+	bleu $t7, $t2, chroma_even
 	bltu $t3, 3, chroma_even
 	li $t4, 0xff
+	sub $t3, $t3, 2
 	li $t2, 8
-	subiu $t3, $t3, 2
-	sub $t3, $t2, $t3
-	srlv $t4, $t4, $t3
+	sub $t2, $t2, $t3
+	srlv $t4, $t4, $t2
 	or $t1, $t1, $t4
+	sub $t7, $t7, $t3
+	j chroma_even	
+line_fill:
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	beq $t7, $s5, special_fill_0
+	li $t1, 0xff
+	subiu $t7, $t7, 8
 	j chroma_even
+special_fill_0:	
+	beq $t3, 1, special_fill_1
+	beq $t3, 2, special_fill_2
+	li $t1, 0x3f
+	subiu $t7, $t7, 6
+	j chroma_even
+special_fill_1:
+	li $t1, 0x7f
+	subiu $t7, $t7, 7
+	j chroma_even
+special_fill_2:
+	li $t1, 0xff
+	subiu $t7, $t7, 8
+	j chroma_even
+line_end:
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	beq $t7, $s5, only_one_line
+	li $t3, 8
+	sub $t3, $t3, $t7
+	li $t7, 0
+	li $t1, 0xff
+	sllv $t1, $t1, $t3
+	addiu $t6 $s4, 1
+	bltu $t3, 3, special_line_end_0
+	subiu $t3, $t3, 3
+	li $t4, 0x01
+	sllv $t4, $t4, $t3
+	or $t1, $t1, $t4
+	subiu $t6, $t6, 1
+	j dots_even
+special_line_end_0:
+	not $t1, $t1			#emergency chroma
+	lb $t4, ($t0)
+	xor $t1, $t1, $t4		#changing a color depending on the background
+	not $t1, $t1
+	sb $t1, ($t0)
+	
+	addiu $t9, $t9, 1
+	addiu $t0, $t0, 1
+	beq $t3, 1, special_line_end_1
+	beq $t3, 2, special_line_end_2	
+	li $t1, 0x20
+	move $t4, $t1
+	subiu $t6, $t6, 1
+	li $t3, 5
+	j dots_even
+special_line_end_1:
+	li $t1, 0x40
+	move $t4, $t1
+	subiu $t6, $t6, 1
+	li $t3, 6
+	j dots_even
+special_line_end_2:
+	li $t1, 0x80
+	move $t4, $t1
+	subiu $t6, $t6, 1
+	li $t3, 7
+	j dots_even
+only_one_line:
+	beq $t3, 0, only_one_line_0
+	beq $t3, 1, only_one_line_1
+	beq $t3, 2, only_one_line_2
+	
+	subiu $t9, $t9, 1
+	subiu $t0, $t0, 1
+	li $t4, 0xff		#reverse prev save
+	sb $t4, ($t0)
+	not $t1, $t1
+	
+	li $t4, 0x01
+	subiu $t3, $t3, 3
+	sllv $t4, $t4, $t3
+	or $t1, $t1, $t4
+	#subiu $t3, $t3, 1
+	subiu $t7, $t7, 1
+	srl $t4, $t4, 1
+	j only_one_line_loop
+only_one_line_0:
+	beq $t7, 7, special_case_one_line
+	li $t1, 0x20
+	subiu $t7, $t7, 1
+	li $t3, 5
+	srl $t4, $t1, 1
+	j only_one_line_loop
+only_one_line_1:
+	li $t1, 0x40
+	subiu $t7, $t7, 1
+	li $t3, 6
+	srl $t4, $t1, 1
+	j only_one_line_loop
+only_one_line_2:
+	li $t1, 0x80
+	subiu $t7, $t7, 1
+	li $t3, 7
+	srl $t4, $t1, 1
+only_one_line_loop:
+	or $t1, $t1, $t4
+	subiu $t7, $t7, 1
+	subiu $t3, $t3, 1
+	srl $t4, $t4, 1
+	bnez $t7, only_one_line_loop
+	addiu $t6, $s4, 1
+	bltu $t3, 3, special_line_end_0
+	subiu $t3, $t3, 3
+	li $t4, 0x01
+	sllv $t4, $t4, $t3
+	or $t1, $t1, $t4
+	subiu $t6, $t6, 1
+	j dots_even
+special_case_one_line:
+	li $t1, 0x3f
+	not $t1, $t1			#emergency chroma
+	lb $t4, ($t0)
+	xor $t1, $t1, $t4		#changing a color depending on the background
+	not $t1, $t1
+	sb $t1, ($t0)
+	
+	addiu $t0, $t0, 1
+	addiu $t9, $t9, 1
+	li $t1, 0x90
+	li $t4, 0x10
+	move $t7, $zero
+	li $t3, 5
+	move $t6, $s4
+	j dots_even
+#########################################################
+even_is_odd:
+	subiu $t3, $t5, 1
+	move $s4, $t3
+	div $s4, $s4, 2			#s4 - number of dost per side
+	move $t6, $s4
+	
+	move $s5, $s1
+	move $t2, $t3
+	mul $t2, $t2, 2
+	sub $s5, $s5, $t2
+	move $t7, $s5
+	j odd_init
 #########################################################
 middle_line:
+	move $t2, $s2
 	li $s3, 1
 	li $t1, 0xff			#first couple of bits in one of the middle lines
 	li $t3, 8
