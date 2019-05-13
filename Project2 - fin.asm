@@ -58,21 +58,30 @@ main:
   sll $t0, $t0, 2
   sw $t0, ilinesize($a3)
   
-  
-  # pixel data starts at offset 62
-  #sb $zero, 62($a1)
-  
   la $a0, imgInfo
   li $a1, 15	# x coordinate
-  li $a2, 100	# y coordinate
+  li $a2, 240	# y coordinate
   lw $t0, iheight($a0)
   sub $a2, $t0, $a2
-  li $s0, 195		#$s0 = size of the pattern
+  li $s0, 89		#$s0 = size of the pattern
   move $s1, $s0
   sll $s1, $s1, 1
   subiu $s1, $s1, 1	#$s1 = the length of the pattern
   move $s2, $s1		#$s2 = number of lines to be drawn
-  li $a3, 1	# color
+  li $a3, 3	# color
+  jal putpixel
+  
+  la $a0, imgInfo
+  li $a1, 250	# x coordinate
+  li $a2, 40	# y coordinate
+  lw $t0, iheight($a0)
+  sub $a2, $t0, $a2
+  li $s0, 66		#$s0 = size of the pattern
+  move $s1, $s0
+  sll $s1, $s1, 1
+  subiu $s1, $s1, 1	#$s1 = the length of the pattern
+  move $s2, $s1		#$s2 = number of lines to be drawn
+  li $a3, 3	# color
   jal putpixel
   
   la $a0, oname
@@ -81,7 +90,7 @@ main:
   li $v0, 13	# open file (write-only)
   syscall
   
-    la $a3, imgInfo  # again pInfo in $a3
+  la $a3, imgInfo  # again pInfo in $a3
 
   move $a0, $v0
   la $a1, bmpbuf
@@ -726,4 +735,6 @@ end_middle:
 	j chroma_middle
 #########################################################
 fin:
+	move $t5, $zero
+	move $s3, $zero
 	jr $ra
