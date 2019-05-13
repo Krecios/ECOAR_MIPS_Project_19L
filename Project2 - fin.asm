@@ -1,4 +1,4 @@
-  .data
+ .data
 fname: 	.asciiz "checkboard.bmp"
 oname:	.asciiz "output.bmp"
 
@@ -64,15 +64,15 @@ main:
   
   la $a0, imgInfo
   li $a1, 15	# x coordinate
-  li $a2, 23	# y coordinate
+  li $a2, 100	# y coordinate
   lw $t0, iheight($a0)
   sub $a2, $t0, $a2
-  li $s0, 156		#$s0 = size of the pattern
+  li $s0, 195		#$s0 = size of the pattern
   move $s1, $s0
   sll $s1, $s1, 1
   subiu $s1, $s1, 1	#$s1 = the length of the pattern
   move $s2, $s1		#$s2 = number of lines to be drawn
-  li $a3, 0	# color
+  li $a3, 1	# color
   jal putpixel
   
   la $a0, oname
@@ -132,54 +132,80 @@ clear_pixel:
 	j pattern
 #########################################################
 pattern:
-	li $t1, 0xff
-	move $t2, $s1
+	beq $s1, 1, middle_line
+	move $t2, $s1			#s3 - middle lane draw flag
+	
+	li $t1, 0xff			#first couple of bits in one of the middle lines
 	li $t3, 8
-	div $t3, $a1, $t3
-	addiu $t3, $t3, 1
-	mul $t3, $t3, 8
-	sub $t3, $t3, $a1
-	sub $t2, $t2, $t3
-	subiu $t3, $t3, 1
+	rem $t4, $a1, 8
+	sub $t3, $t3, $t4
+	bleu $s1, $t3, short_pattern
 	sllv $t1, $t1, $t3
-	lb $t4, ($t0)		#changing a color depending on the background
-	xor $t1, $t1, $t4
+	srl $t1, $t1, 1
+	sub $t2, $t2, $t3
+chroma_pattern:
+	beq $a3, 1, chroma_pattern_white			#color checks
+	beq $a3, 3, chroma_pattern_invert
+	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
 	not $t1, $t1
 	sb $t1, ($t0)
-copy:
-	li $t3, 8		#bits in the middle of the line
-	div $t3, $t2, $t3
-	beqz $t3, last_bit
-	bge $t3, 2, more_than_one
-	mulu $t3, $t3, 8
-	sub $t3, $t3, $t2
-	beqz $t3, last_bit
-more_than_one:			#sanity checks for the remaining bits
-	addiu $t0, $t0, 1	
+	j chroma_pattern_check
+chroma_pattern_white:
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_pattern_check
+chroma_pattern_invert:
+	lb $t4, ($t0)			
+	xor $t1, $t1, $t4		#changing a color depending on the background
+	not $t1, $t1
+	sb $t1, ($t0)
+chroma_pattern_check:
+	bgtu $t2, 8, fill_pattern
+	bnez $t2, end_pattern
+	j end_line 
+short_pattern:
+	li $t1, 0x01
+	subiu $t3, $t3, 2
+	subiu $t2, $t2, 2
+	sllv $t1, $t1, $t3
+	move $t4, $t1
+	subiu $t2, $t2, 1
+short_pattern_loop:
+	beqz $t2, chroma_pattern_pre
+	srl $t4, $t4, 1
+	or $t1, $t1, $t4
+	subiu $t2, $t2, 1
+	j short_pattern_loop
+chroma_pattern_pre:
+	not $t1, $t1
+	j chroma_pattern
+fill_pattern:
+	addiu $t0, $t0, 1
 	addiu $t9, $t9, 1
 	li $t1, 0x00
-	lb $t4, ($t0)		#changing a color depending on the background
-	xor $t1, $t1, $t4
-	not $t1, $t1
-	sb $t1, ($t0) 
 	subiu $t2, $t2, 8
-	j copy
-last_bit:
-	addiu $t0, $t0, 1	#last couple of bits in a straight line
+	j chroma_pattern
+end_pattern:
+	addiu $t0, $t0, 1
 	addiu $t9, $t9, 1
 	li $t1, 0xff
 	subiu $t2, $t2, 1
 	srlv $t1, $t1, $t2
-	lb $t4, ($t0)		#changing a color depending on the background
-	xor $t1, $t1, $t4
-	not $t1, $t1
-	sb $t1, ($t0)
+	move $t2, $zero
+	j chroma_pattern
 #########################################################	
 end_line:			#next line check
 	sub $t0, $t0, $t9
 	move $t9, $0
 	lw $t3, iwidth($a0)
 	div $t3, $t3, 8
+	subiu $a2, $a2, 1
+	beqz $a2, fin
 	sub $t0, $t0, $t3
 	subiu $s2, $s2, 1
 	beq $s2, 1, pattern
@@ -237,12 +263,31 @@ chroma_odd:
 	move $t8, $t1
 	sll $t8, $t8, 30
 	srl $t8, $t8, 24
-					
+	
+	beq $a3, 1, chroma_odd_white
+	beq $a3, 3, chroma_odd_invert
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
+	not $t1, $t1
+	sb $t1, ($t0)
+	j chroma_odd_check
+chroma_odd_white:
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_odd_check
+chroma_odd_invert:				
 	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
+chroma_odd_check:
 	bnez $t6, prep_dots_odd
 	bgeu $t7, 8, gap_fill
 	bnez $t7, gap_end
@@ -256,12 +301,30 @@ prep_dots_odd:
 	subiu $t6, $t6, 1
 	j dots_odd
 dots_start_odd:
-	not $t1, $t1			# emergency chroma
+	beq $a3, 1, chroma_odd_white_emer			#emergency chroma operation is required
+	beq $a3, 3, chroma_odd_invert_emer
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
+	not $t1, $t1
+	sb $t1, ($t0)
+	j chroma_odd_post
+chroma_odd_white_emer:
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_odd_post
+chroma_odd_invert_emer:				
+	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
-	
+chroma_odd_post:	
 	addiu $t9, $t9, 1
 	addiu $t0, $t0, 1
 	li $t1, 0x80
@@ -310,13 +373,13 @@ gap_end:
 	move $t6, $s4
 	bnez $s6, middle_dot_at_the_end
 	j dots_odd
-middle_dot_at_the_end:
+middle_dot_at_the_end:				#special case where the middle dot has to be placed in the byte with the end of the gap
 	sllv $t4, $t4, $s6
 	or $t1, $t1, $t4
 	srlv $t4, $t4, $s6
 	move $s6, $zero
 	j dots_odd
-no_gap:
+no_gap:						#special case where the gap is so short that it fits in a single 8 bits
 	addiu $t7, $t7, 1
 	sub $t3, $t3, $t7
 	srlv $t4, $t4, $t7
@@ -362,12 +425,31 @@ chroma_even:
 	move $t8, $t1
 	sll $t8, $t8, 30
 	srl $t8, $t8, 24
-					
+	
+	beq $a3, 1, chroma_even_white
+	beq $a3, 3, chroma_even_invert
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
+	not $t1, $t1
+	sb $t1, ($t0)
+	j chroma_even_check
+chroma_even_white:
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_even_check
+chroma_even_invert:				
 	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
+chroma_even_check:
 	bnez $t6, prep_dots_even
 	bgtu $t7, 8, line_fill
 	bnez $t7, line_end
@@ -395,7 +477,7 @@ line_start:
 line_fill:
 	addiu $t9, $t9, 1
 	addiu $t0, $t0, 1
-	beq $t7, $s5, special_fill_0
+	beq $t7, $s5, special_fill_0		#when the fill is also a begining of a line
 	li $t1, 0xff
 	subiu $t7, $t7, 8
 	j chroma_even
@@ -423,7 +505,7 @@ line_end:
 	li $t1, 0xff
 	sllv $t1, $t1, $t3
 	addiu $t6 $s4, 1
-	bltu $t3, 3, special_line_end_0
+	bltu $t3, 3, special_line_end_0				#when the space after the end of filling the end of the line does not allow to place the first dot in the sequence
 	subiu $t3, $t3, 3
 	li $t4, 0x01
 	sllv $t4, $t4, $t3
@@ -431,12 +513,32 @@ line_end:
 	subiu $t6, $t6, 1
 	j dots_even
 special_line_end_0:
-	not $t1, $t1			#emergency chroma
+
+	beq $a3, 1, chroma_even_white_emer1			#emergency chroma operation is required, because the prev line has to be saved without the checks present in regular chroma
+	beq $a3, 3, chroma_even_invert_emer1
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
+	not $t1, $t1
+	sb $t1, ($t0)
+	j chroma_even_post1
+chroma_even_white_emer1:
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_even_post1
+chroma_even_invert_emer1:				
+	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
 	
+chroma_even_post1:	
 	addiu $t9, $t9, 1
 	addiu $t0, $t0, 1
 	beq $t3, 1, special_line_end_1
@@ -459,7 +561,7 @@ special_line_end_2:
 	li $t3, 7
 	j dots_even
 only_one_line:
-	beq $t3, 0, only_one_line_0
+	beq $t3, 0, only_one_line_0		#if line is so short, that it fits in a single 8bit byte
 	beq $t3, 1, only_one_line_1
 	beq $t3, 2, only_one_line_2
 	
@@ -473,7 +575,6 @@ only_one_line:
 	subiu $t3, $t3, 3
 	sllv $t4, $t4, $t3
 	or $t1, $t1, $t4
-	#subiu $t3, $t3, 1
 	subiu $t7, $t7, 1
 	srl $t4, $t4, 1
 	j only_one_line_loop
@@ -509,14 +610,34 @@ only_one_line_loop:
 	or $t1, $t1, $t4
 	subiu $t6, $t6, 1
 	j dots_even
-special_case_one_line:
+special_case_one_line:						#very special case where the line is length 8, and the byte that will be written starts with one clear space, so there is a need to go to the next line to place first dot in the sequence 
 	li $t1, 0x3f
-	not $t1, $t1			#emergency chroma
+	
+	beq $a3, 1, chroma_even_white_emer2			#emergency chroma operation is required
+	beq $a3, 3, chroma_even_invert_emer2
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
+	not $t1, $t1
+	sb $t1, ($t0)
+	j chroma_even_post2
+chroma_even_white_emer2:
+	not $t1, $t1
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_even_post2
+chroma_even_invert_emer2:				
+	not $t1, $t1
 	lb $t4, ($t0)
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
 	sb $t1, ($t0)
 	
+chroma_even_post2:	
 	addiu $t0, $t0, 1
 	addiu $t9, $t9, 1
 	li $t1, 0x90
@@ -540,48 +661,69 @@ even_is_odd:
 	j odd_init
 #########################################################
 middle_line:
-	move $t2, $s2
-	li $s3, 1
+	move $t2, $s1
+	li $s3, 1			#s3 - middle lane draw flag
+	
 	li $t1, 0xff			#first couple of bits in one of the middle lines
 	li $t3, 8
-	div $t3, $a1, $t3
-	addiu $t3, $t3, 1
-	mul $t3, $t3, 8
-	sub $t3, $t3, $a1
+	rem $t4, $a1, 8
+	sub $t3, $t3, $t4
+	bltu $s1, $t3, short_middle
 	sllv $t1, $t1, $t3
+	sub $t2, $t2, $t3
+chroma_middle:
+	beq $a3, 1, chroma_middle_white
+	beq $a3, 3, chroma_middle_invert
 	lb $t4, ($t0)
+	not $t4, $t4
+	not $t1, $t1
+	or $t1, $t1, $t4
+	not $t1, $t1
+	sb $t1, ($t0)
+	j chroma_middle_check
+chroma_middle_white:
+	lb $t4, ($t0)
+	not $t1, $t1
+	or $t1, $t1, $t4
+	sb $t1, ($t0)
+	j chroma_middle_check
+chroma_middle_invert:
+	lb $t4, ($t0)			
 	xor $t1, $t1, $t4		#changing a color depending on the background
 	not $t1, $t1
-	sb $t1, ($t0) 
-copy_m:					#middle couple of bits in one of the middle lines
-	li $t3, 8
-	div $t3, $t2, $t3
-	beqz $t3, last_bit_m
-	bge $t3, 2, more_than_one_m
-	mulu $t3, $t3, 8
-	sub $t3, $t3, $t2
-	beqz $t3, last_bit_m
-more_than_one_m:			#sanity checks for the remaining bits
+	sb $t1, ($t0)
+chroma_middle_check:
+	bgeu $t2, 8, fill_middle
+	bnez $t2, end_middle
+	j end_line 
+short_middle:
+	li $t1, 0x01
+	subiu $t3, $t3, 1
+	sllv $t1, $t1, $t3
+	move $t4, $t1
+	subiu $t2, $t2, 1
+short_middle_loop:
+	beqz $t2, chroma_middle_pre
+	srl $t4, $t4, 1
+	or $t1, $t1, $t4
+	subiu $t2, $t2, 1
+	j short_middle_loop
+chroma_middle_pre:
+	not $t1, $t1
+	j chroma_middle
+fill_middle:
 	addiu $t0, $t0, 1
 	addiu $t9, $t9, 1
-	subiu $t2, $t2, 8
-	bne $s2, $s0, copy_m
 	li $t1, 0x00
-	lb $t4, ($t0)		#changing a color depending on the background
-	xor $t1, $t1, $t4
-	not $t1, $t1
-	sb $t1, ($t0) 
-	j copy_m
-last_bit_m:				#last couple of bits in one of the middle lines
+	subiu $t2, $t2, 8
+	j chroma_middle
+end_middle:
 	addiu $t0, $t0, 1
 	addiu $t9, $t9, 1
 	li $t1, 0xff
 	srlv $t1, $t1, $t2
-	lb $t4, ($t0)
-	xor $t1, $t1, $t4		#changing a color depending on the background
-	not $t1, $t1
-	sb $t1, ($t0)
-	j end_line
+	move $t2, $zero
+	j chroma_middle
 #########################################################
 fin:
 	jr $ra
